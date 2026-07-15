@@ -41,6 +41,7 @@ export function VimPromptSlot(props: TuiSlotProps<"session_prompt">): JSX.Elemen
       sessionID={props.session_id}
       visible={props.visible}
       disabled={props.disabled}
+      compact
       onSubmit={props.on_submit}
       ref={(ref: any) => {
         props.ref?.(ref)
@@ -58,6 +59,7 @@ export function VimHomePromptSlot(props: TuiSlotProps<"home_prompt">): JSX.Eleme
 
   return (
     <Prompt
+      compact
       hint={<ModeTag />}
       right={<Slot name="home_prompt_right" />}
       ref={(ref: any) => {
