@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show, createSignal, type JSX } from "solid-js"
-import { useBindings } from "@opentui/keymap/solid"
+import { For, Show, type JSX } from "solid-js"
+import { useBindings, useKeymapSelector } from "@opentui/keymap/solid"
 import {
   DEFAULT_LEADER_MENU,
   isSeparator,
@@ -9,31 +9,45 @@ import {
   type LeaderItem,
   type LeaderLeaf,
 } from "./leader-menu"
-import { setIsLeaderActive } from "./state"
+import { setLeader, getLeaderView, setLeaderView, getLeaderSelected, setLeaderSelected } from "./state"
 
-type View = { kind: "groups" } | { kind: "items"; group: LeaderGroup }
+const GROUP_INDEX = "opencode-vim.leader.groupIndex"
+
+function viewGroup(groups: LeaderGroup[], view: string): LeaderGroup | undefined {
+  if (view === "groups") return undefined
+  if (view.startsWith("items:")) return groups.find((g) => g.key === view.slice(6))
+  return undefined
+}
 
 export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPluginApi; onClose: () => void }): JSX.Element {
   const groups = DEFAULT_LEADER_MENU
-  const [view, setView] = createSignal<View>({ kind: "groups" })
-  const [selected, setSelected] = createSignal(0)
-  const [groupIndex, setGroupIndex] = createSignal(0)
+  const km = () => props.api.keymap
 
-  const items = () => (view().kind === "items" ? view().group.items : groups)
-  const selectedItem = (): LeaderItem | undefined => items()[selected()]
+  const view = useKeymapSelector((k) => getLeaderView(k))
+  const selected = useKeymapSelector((k) => getLeaderSelected(k))
+  const groupIndex = useKeymapSelector((k) => (k.getData(GROUP_INDEX) as number | undefined) ?? 0)
+
+  const items = (): LeaderItem[] => {
+    const v = view()
+    if (v === "groups") return groups as unknown as LeaderItem[]
+    const g = viewGroup(groups, v)
+    return (g?.items ?? []) as LeaderItem[]
+  }
 
   const openGroup = (g: LeaderGroup) => {
-    setView({ kind: "items", group: g })
-    setSelected(0)
+    km().setData(GROUP_INDEX, groups.indexOf(g))
+    setLeaderView(km(), `items:${g.key}`)
+    setLeaderSelected(km(), 0)
   }
 
   const back = () => {
-    setView({ kind: "groups" })
-    setSelected(groupIndex())
+    setLeaderView(km(), "groups")
+    setLeaderSelected(km(), (km().getData(GROUP_INDEX) as number | undefined) ?? 0)
   }
 
   const activate = () => {
-    const item = selectedItem()
+    const list = items()
+    const item = list[selected()]
     if (!item || isSeparator(item)) return
     props.onClose()
     executeAction(props.api, item as LeaderLeaf)
@@ -42,7 +56,6 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
   const groupCommands = groups.map((g) => ({
     name: `vim_leader_open_${g.key}`,
     run() {
-      setGroupIndex(groups.indexOf(g))
       openGroup(g)
     },
   }))
@@ -50,35 +63,19 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
   useBindings(() => ({
     enabled: () => props.api.ui.dialog.open,
     commands: [
-      {
-        name: "vim_leader_close",
-        run() {
-          props.onClose()
-        },
-      },
-      {
-        name: "vim_leader_activate",
-        run() {
-          activate()
-        },
-      },
-      {
-        name: "vim_leader_back",
-        run() {
-          if (view().kind === "items") back()
-          else props.onClose()
-        },
-      },
+      { name: "vim_leader_close", run() { props.onClose() } },
+      { name: "vim_leader_activate", run() { activate() } },
+      { name: "vim_leader_back", run() { if (view() !== "groups") back(); else props.onClose() } },
       {
         name: "vim_leader_down",
         run() {
-          setSelected((i) => Math.min(items().length - 1, i + 1))
+          setLeaderSelected(km(), Math.min(items().length - 1, getLeaderSelected(km()) + 1))
         },
       },
       {
         name: "vim_leader_up",
         run() {
-          setSelected((i) => Math.max(0, i - 1))
+          setLeaderSelected(km(), Math.max(0, getLeaderSelected(km()) - 1))
         },
       },
       ...groupCommands,
@@ -107,25 +104,13 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
   })
 
   return (
-    <box
-      flexDirection="column"
-      width="100%"
-      backgroundColor={skin().panel}
-      paddingTop={1}
-      paddingBottom={1}
-      paddingLeft={2}
-      paddingRight={2}
-      gap={1}
-    >
+    <box flexDirection="column" width="100%" backgroundColor={skin().panel} paddingTop={1} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
       <text fg={skin().accent}>
         <b>LEADER</b>
-        <span style={{ fg: skin().muted }}>
-          {" "}
-          — space then key{view().kind === "items" ? " · backspace to go back" : ""}
-        </span>
+        <span style={{ fg: skin().muted }}> — space then key{view() !== "groups" ? " · backspace to go back" : ""}</span>
       </text>
 
-      <Show when={view().kind === "groups"}>
+      <Show when={view() === "groups"}>
         <box flexDirection="column" gap={0}>
           <For each={groups}>
             {(g, i) => (
@@ -137,15 +122,15 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
         </box>
       </Show>
 
-      <Show when={view().kind === "items"}>
+      <Show when={view() !== "groups"}>
         <box flexDirection="column" gap={0}>
-          <For each={view().group.items}>
+          <For each={items()}>
             {(item, i) =>
               isSeparator(item) ? (
                 <text fg={skin().muted}> ──────────────</text>
               ) : (
                 <text fg={i() === selected() ? skin().selected : skin().text}>
-                  <span style={{ fg: skin().accent }}> {item.key} </span> {item.label}
+                  <span style={{ fg: skin().accent }}> {(item as LeaderLeaf).key} </span> {(item as LeaderLeaf).label}
                 </text>
               )
             }
@@ -157,13 +142,15 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
 }
 
 export function openLeaderMenu(api: import("@opencode-ai/plugin/tui").TuiPluginApi): void {
-  setIsLeaderActive(true)
+  setLeader(api.keymap, true)
+  setLeaderView(api.keymap, "groups")
+  setLeaderSelected(api.keymap, 0)
   api.ui.dialog.setSize("large")
   api.ui.dialog.replace(() => (
     <LeaderMenu
       api={api}
       onClose={() => {
-        setIsLeaderActive(false)
+        setLeader(api.keymap, false)
         api.ui.dialog.clear()
       }}
     />

@@ -1,28 +1,34 @@
 /** @jsxImportSource @opentui/solid */
 import { Show, type JSX } from "solid-js"
 import { RGBA } from "@opentui/core"
+import { useKeymapSelector } from "@opentui/keymap/solid"
 import type { TuiPluginApi, TuiSlotProps } from "@opencode-ai/plugin/tui"
-import { setActivePromptRef, isNormal, currentMode } from "./state"
+import { setActivePromptRef, getNormal } from "./state"
 
 const [apiRef, setApiRef] = (() => {
   let a: TuiPluginApi | undefined
-  return [
-    () => a,
-    (v: TuiPluginApi | undefined) => {
-      a = v
-    },
-  ] as const
+  return [() => a, (v: TuiPluginApi | undefined) => { a = v }] as const
 })()
 
 export function setVimApi(api: TuiPluginApi) {
   setApiRef(api)
 }
 
+function ModeTag(): JSX.Element {
+  const theme = () => (apiRef() as TuiPluginApi).theme.current
+  const normal = useKeymapSelector((km) => getNormal(km))
+  return (
+    <box flexShrink={0} flexDirection="row">
+      <text fg={normal() ? RGBA.fromInts(120, 200, 255, 255) : theme().textMuted}>
+        {normal() ? "NORMAL" : "INSERT"}
+      </text>
+    </box>
+  )
+}
+
 export function VimPromptSlot(props: TuiSlotProps<"session_prompt">): JSX.Element {
   const Prompt = (apiRef() as TuiPluginApi).ui.Prompt
   const Slot = (apiRef() as TuiPluginApi).ui.Slot
-  const theme = () => (apiRef() as TuiPluginApi).theme.current
-  const mode = currentMode()
 
   const right = (
     <Show when={props.session_id}>
@@ -41,15 +47,7 @@ export function VimPromptSlot(props: TuiSlotProps<"session_prompt">): JSX.Elemen
         setActivePromptRef(ref)
       }}
       right={right}
-      hint={
-        <box flexShrink={0} flexDirection="row">
-          <text
-            fg={mode() === "NORMAL" ? RGBA.fromInts(120, 200, 255, 255) : theme().textMuted}
-          >
-            {mode() === "NORMAL" ? "NORMAL" : "INSERT"}
-          </text>
-        </box>
-      }
+      hint={<ModeTag />}
     />
   )
 }
@@ -57,20 +55,10 @@ export function VimPromptSlot(props: TuiSlotProps<"session_prompt">): JSX.Elemen
 export function VimHomePromptSlot(props: TuiSlotProps<"home_prompt">): JSX.Element {
   const Prompt = (apiRef() as TuiPluginApi).ui.Prompt
   const Slot = (apiRef() as TuiPluginApi).ui.Slot
-  const theme = () => (apiRef() as TuiPluginApi).theme.current
-  const mode = currentMode()
 
   return (
     <Prompt
-      hint={
-        <box flexShrink={0} flexDirection="row">
-          <text
-            fg={mode() === "NORMAL" ? RGBA.fromInts(120, 200, 255, 255) : theme().textMuted}
-          >
-            {mode() === "NORMAL" ? "NORMAL" : "INSERT"}
-          </text>
-        </box>
-      }
+      hint={<ModeTag />}
       right={<Slot name="home_prompt_right" />}
       ref={(ref: any) => {
         props.ref?.(ref)

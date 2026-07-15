@@ -1,14 +1,12 @@
 /** @jsxImportSource @opentui/solid */
-import { createBindingLookup } from "@opentui/keymap/extras"
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule, TuiSlotPlugin, KeyEvent } from "@opencode-ai/plugin/tui"
 import { setVimApi, VimPromptSlot, VimHomePromptSlot } from "./prompt-slot"
 import { StatusBar, RecentSessions } from "./status-bar"
 import { openLeaderMenu } from "./leader-menu-ui"
 import {
-  isNormal,
-  setIsNormal,
-  isLeaderActive,
-  setIsLeaderActive,
+  getNormal,
+  setNormal,
+  setLeader,
   getActivePromptRef,
 } from "./state"
 
@@ -16,8 +14,8 @@ let modePopper: (() => void) | undefined
 let pendingG = false
 
 function enterNormal(api: TuiPluginApi) {
-  if (isNormal()) return
-  setIsNormal(true)
+  if (getNormal(api.keymap)) return
+  setNormal(api.keymap, true)
   try {
     getActivePromptRef()?.blur()
   } catch {
@@ -27,8 +25,8 @@ function enterNormal(api: TuiPluginApi) {
 }
 
 function enterInsert(api: TuiPluginApi) {
-  setIsNormal(false)
-  setIsLeaderActive(false)
+  setNormal(api.keymap, false)
+  setLeader(api.keymap, false)
   if (modePopper) {
     modePopper()
     modePopper = undefined
@@ -50,6 +48,26 @@ function handleNormalKey(api: TuiPluginApi, ctx: { event: KeyEvent }) {
     return
   }
 
+  // ctrl combos (ev.name is the base key, ev.ctrl true)
+  if (ev.ctrl) {
+    switch (name) {
+      case "f":
+        api.keymap.dispatchCommand("session.page.down")
+        return
+      case "b":
+        api.keymap.dispatchCommand("session.page.up")
+        return
+      case "d":
+        api.keymap.dispatchCommand("session.half.page.down")
+        return
+      case "u":
+        api.keymap.dispatchCommand("session.half.page.up")
+        return
+      default:
+        return
+    }
+  }
+
   switch (name) {
     case "i":
     case "a":
@@ -66,18 +84,6 @@ function handleNormalKey(api: TuiPluginApi, ctx: { event: KeyEvent }) {
     case "k":
     case "up":
       api.keymap.dispatchCommand("session.line.up")
-      return
-    case "ctrl+f":
-      api.keymap.dispatchCommand("session.page.down")
-      return
-    case "ctrl+b":
-      api.keymap.dispatchCommand("session.page.up")
-      return
-    case "ctrl+d":
-      api.keymap.dispatchCommand("session.half.page.down")
-      return
-    case "ctrl+u":
-      api.keymap.dispatchCommand("session.half.page.up")
       return
     case "g":
       pendingG = true
@@ -108,29 +114,29 @@ const tui: TuiPlugin = async (api, options, meta) => {
 
   const sessionPromptSlot: TuiSlotPlugin = {
     slots: {
-      session_prompt(props) {
+      session_prompt(_ctx, props) {
         return <VimPromptSlot {...(props as any)} />
       },
     },
   }
   const homePromptSlot: TuiSlotPlugin = {
     slots: {
-      home_prompt(props) {
+      home_prompt(_ctx, props) {
         return <VimHomePromptSlot {...(props as any)} />
       },
     },
   }
   const footerSlot: TuiSlotPlugin = {
     slots: {
-      home_footer(props) {
-        return <StatusBar api={api} {...(props as any)} />
+      home_footer() {
+        return <StatusBar api={api} />
       },
     },
   }
   const bottomSlot: TuiSlotPlugin = {
     slots: {
-      home_bottom(props) {
-        return <RecentSessions api={api} {...(props as any)} />
+      home_bottom() {
+        return <RecentSessions api={api} />
       },
     },
   }
@@ -144,7 +150,7 @@ const tui: TuiPlugin = async (api, options, meta) => {
     if (api.ui.dialog.open) return
     const ev = ctx.event
 
-    if (!isNormal()) {
+    if (!getNormal(api.keymap)) {
       if (ev.name === "escape") {
         ctx.consume()
         enterNormal(api)

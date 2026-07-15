@@ -1,12 +1,16 @@
 /** @jsxImportSource @opentui/solid */
-import { For, Show, createEffect, createSignal, type JSX } from "solid-js"
+import { For, Show, type JSX } from "solid-js"
 import { RGBA } from "@opentui/core"
+import { useKeymapSelector } from "@opentui/keymap/solid"
 import type { TuiPluginApi, TuiSlotProps } from "@opencode-ai/plugin/tui"
-import { isNormal, isLeaderActive, currentMode } from "./state"
+import { getNormal, getLeader } from "./state"
 
-export function StatusBar(props: TuiSlotProps<"home_footer"> & { api: TuiPluginApi }): JSX.Element {
+const RECENT = "opencode-vim.recent"
+
+export function StatusBar(props: { api: TuiPluginApi }): JSX.Element {
   const theme = () => props.api.theme.current
-  const mode = currentMode()
+  const normal = useKeymapSelector((km) => getNormal(km))
+  const leader = useKeymapSelector((km) => getLeader(km))
   const dir = () => props.api.state.path.directory ?? process.cwd()
 
   return (
@@ -21,10 +25,10 @@ export function StatusBar(props: TuiSlotProps<"home_footer"> & { api: TuiPluginA
       border={["top"]}
       borderColor={theme().border}
     >
-      <text fg={mode() === "NORMAL" ? RGBA.fromInts(120, 200, 255, 255) : theme().success}>
-        {mode() === "NORMAL" ? "▌ NORMAL" : "▌ INSERT"}
+      <text fg={normal() ? RGBA.fromInts(120, 200, 255, 255) : theme().success}>
+        {normal() ? "▌ NORMAL" : "▌ INSERT"}
       </text>
-      <Show when={isLeaderActive()} fallback={null as any}>
+      <Show when={leader()} fallback={null as any}>
         <text fg={theme().accent}>LEADER</text>
       </Show>
       <box flexDirection="row" flexShrink={0}>
@@ -35,9 +39,9 @@ export function StatusBar(props: TuiSlotProps<"home_footer"> & { api: TuiPluginA
   )
 }
 
-export function RecentSessions(props: TuiSlotProps<"home_bottom"> & { api: TuiPluginApi }): JSX.Element {
+export function RecentSessions(props: { api: TuiPluginApi }): JSX.Element {
   const theme = () => props.api.theme.current
-  const [sessions, setSessions] = createSignal<Array<{ id: string; title: string; directory: string }>>([])
+  const sessions = useKeymapSelector((km) => (km.getData(RECENT) as any[]) ?? [])
 
   const load = async () => {
     try {
@@ -45,36 +49,25 @@ export function RecentSessions(props: TuiSlotProps<"home_bottom"> & { api: TuiPl
       const result: any = await client.session.list({
         query: { limit: 8, directory: props.api.state.path.directory },
       })
-      const raw =
-        Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : []
-      setSessions(
-        raw
-          .map((s: any) => ({ id: s.id, title: s.title, directory: s.directory }))
-          .filter((s: any) => s && s.id),
-      )
+      const raw = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : []
+      const list = raw
+        .map((s: any) => ({ id: s.id, title: s.title, directory: s.directory }))
+        .filter((s: any) => s && s.id)
+      props.api.keymap.setData(RECENT, list)
     } catch {
-      setSessions([])
+      props.api.keymap.setData(RECENT, [])
     }
   }
 
-  createEffect(() => {
-    load()
-  })
+  // fire once; setData triggers reactive update via useKeymapSelector
+  load()
 
   return (
     <Show when={sessions().length > 0} fallback={null as any}>
-      <box
-        width="100%"
-        maxWidth={80}
-        alignItems="flex-start"
-        flexShrink={0}
-        flexDirection="column"
-        gap={0}
-        paddingTop={1}
-      >
+      <box width="100%" maxWidth={80} alignItems="flex-start" flexShrink={0} flexDirection="column" gap={0} paddingTop={1}>
         <text fg={theme().textMuted}>recent sessions</text>
         <For each={sessions()}>
-          {(s) => (
+          {(s: any) => (
             <text fg={theme().text}>
               <span style={{ fg: theme().accent }}>•</span> {s.title || s.id}
             </text>
