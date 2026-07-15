@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule, TuiSlotPlugin, KeyEvent } from "@opencode-ai/plugin/tui"
 import { setVimApi, VimPromptSlot, VimHomePromptSlot } from "./prompt-slot"
-import { StatusBar, RecentSessions } from "./status-bar"
+import { StatusBar } from "./status-bar"
 import { openLeaderMenu } from "./leader-menu-ui"
 import {
   getNormal,
@@ -109,8 +109,30 @@ const tui: TuiPlugin = async (api, options, meta) => {
 
   setVimApi(api)
 
-  await api.theme.install("./oceanblack.json")
-  api.theme.set("oceanblack")
+  // Keep the entry revision in sync with theme-only updates so the host
+  // refreshes its basename-keyed theme cache.
+  // Install and activate the plugin-owned theme automatically. The host uses
+  // the file basename as the theme id, so this registers "oc-minimal".
+  await api.theme.install("./oc-minimal.json")
+  api.theme.set("oc-minimal")
+
+  // Keep the stock home screen quiet while this plugin is active. Restore the
+  // user's previous tip preference if the plugin is disabled at runtime.
+  const tipsHidden = api.kv.get("tips_hidden", false)
+  api.kv.set("tips_hidden", true)
+  api.lifecycle.onDispose(() => api.kv.set("tips_hidden", tipsHidden))
+
+  const sidebar = api.kv.get<"auto" | "hide">("sidebar", "auto")
+  api.kv.set("sidebar", "hide")
+  api.lifecycle.onDispose(() => api.kv.set("sidebar", sidebar))
+
+  const logoSlot: TuiSlotPlugin = {
+    slots: {
+      home_logo() {
+        return <box />
+      },
+    },
+  }
 
   const sessionPromptSlot: TuiSlotPlugin = {
     slots: {
@@ -133,18 +155,11 @@ const tui: TuiPlugin = async (api, options, meta) => {
       },
     },
   }
-  const bottomSlot: TuiSlotPlugin = {
-    slots: {
-      home_bottom() {
-        return <RecentSessions api={api} />
-      },
-    },
-  }
 
+  api.slots.register(logoSlot)
   api.slots.register(sessionPromptSlot)
   api.slots.register(homePromptSlot)
   api.slots.register(footerSlot)
-  api.slots.register(bottomSlot)
 
   api.keymap.intercept("key", (ctx) => {
     if (api.ui.dialog.open) return
@@ -158,8 +173,9 @@ const tui: TuiPlugin = async (api, options, meta) => {
       return
     }
 
-    // keep global ctrl/meta shortcuts (ctrl+c, ctrl+l, ...) available in normal mode
-    if (ev.ctrl || ev.meta) return
+    // Keep unrelated global shortcuts available while handling Vim scrolling.
+    if (ev.meta) return
+    if (ev.ctrl && !["f", "b", "d", "u"].includes(ev.name)) return
 
     ctx.consume()
     handleNormalKey(api, ctx)

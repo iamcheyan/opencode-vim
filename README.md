@@ -2,12 +2,12 @@
 
 把 [opencode](https://opencode.ai) 变成 vim 风格操作体验的 **纯 TUI 插件**。
 
-不修改 opencode 本身的任何源码：所有功能（vim 模式、LEADER 菜单、状态栏、oceanblack 主题、最近会话）都通过官方插件 API（`api.ui.Prompt`、`api.keymap`、`api.slots`、`api.theme`）实现。
+不修改 opencode 本身的任何源码：所有功能（vim 模式、LEADER 菜单、状态栏、极简首页、oc-minimal 主题）都通过官方插件 API（`api.ui.Prompt`、`api.keymap`、`api.slots`、`api.theme`）实现。
 
 ## 功能
 
 - **Vim 模式**：在输入框内按 `Esc` 进入 `NORMAL` 模式（失焦、隐藏光标），按 `i` / `a` / `I` / `A` / `o` / `O` 回到 `INSERT` 模式。
-- **状态栏**（`home_footer`）：左下角实时显示 `NORMAL` / `INSERT` 与当前工作目录。
+- **状态栏**（`home_footer`）：首页左下角实时显示 `NORMAL` / `INSERT` 与当前工作目录。
 - **LEADER 菜单**：`NORMAL` 模式下按 `Space` 打开，再按分组键进入子菜单，`j/k` 或 `↑/↓` 移动，`Enter` 执行，`Esc` / `Backspace` 返回/关闭。
 - **翻页与跳转**（NORMAL 模式）：
   - `j` / `↓`、`k` / `↑`：上/下移动一行
@@ -16,8 +16,9 @@
   - `gg` / `G`：跳到首条 / 末条消息
 - **命令面板**：NORMAL 模式按 `:` 打开 opencode 命令面板。
 - **lazygit**：LEADER 菜单 `l` → `g`（需系统已安装 `lazygit`）。
-- **oceanblack 主题**：插件加载时自动安装并启用。
-- **最近会话**（`home_bottom`）：首页底部列出当前目录最近的会话。
+- **oc-minimal 主题**：主题由插件管理，插件加载时自动安装并启用，无需额外配置。
+- **极简首页**：隐藏默认 Logo、Tip 和最近会话，只保留输入区与必要状态。
+- **隐藏侧边栏**：插件启用期间将会话侧边栏保持为默认隐藏。
 
 ## 安装
 
@@ -81,6 +82,6 @@ state.ts          共享信号（NORMAL/INSERT 状态、活动 prompt ref）
 leader-menu.ts    LEADER 菜单数据与动作执行
 leader-menu-ui.tsx LEADER 菜单弹窗 UI
 prompt-slot.tsx  包裹 api.ui.Prompt 并接入 vim 模式
-status-bar.tsx    home_footer 状态栏、home_bottom 最近会话
-oceanblack.json   oceanblack 主题定义
+status-bar.tsx    home_footer 状态栏
+oc-minimal.json    插件自动安装并启用的极简主题
 ```
