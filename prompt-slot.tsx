@@ -22,9 +22,9 @@ function ModeTag(): JSX.Element {
       flexDirection="row"
       paddingLeft={1}
       paddingRight={1}
-      backgroundColor={normal() ? theme().text : theme().textMuted}
+      backgroundColor={normal() ? theme().border : theme().warning}
     >
-      <text fg={normal() ? theme().backgroundElement : theme().text}>
+      <text fg={normal() ? theme().secondary : theme().selectedListItemText}>
         {normal() ? "NORMAL" : "INSERT"}
       </text>
     </box>
