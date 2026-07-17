@@ -38,34 +38,23 @@ function enterInsert(api: TuiPluginApi) {
   }
 }
 
-function handleNormalKey(api: TuiPluginApi, ctx: { event: KeyEvent }) {
+// Consume a key only when we actually handle it, so that opencode's native
+// keybinds keep working in NORMAL mode. Notably the subagent navigation keys
+// (up/down/left/right) and the leader sequences (<leader>down = view
+// subagents, <leader>q, <leader>t, ...) must pass through to the host keymap.
+// j/k/g/G/i/a/o/... are not bound by opencode, so they are safe to consume.
+
+function handleNormalKey(api: TuiPluginApi, ctx: { event: KeyEvent; consume: () => void }) {
   const ev = ctx.event
   const name = ev.name
 
   if (pendingG) {
     pendingG = false
-    if (name === "g") api.keymap.dispatchCommand("session.first")
-    return
-  }
-
-  // ctrl combos (ev.name is the base key, ev.ctrl true)
-  if (ev.ctrl) {
-    switch (name) {
-      case "f":
-        api.keymap.dispatchCommand("session.page.down")
-        return
-      case "b":
-        api.keymap.dispatchCommand("session.page.up")
-        return
-      case "d":
-        api.keymap.dispatchCommand("session.half.page.down")
-        return
-      case "u":
-        api.keymap.dispatchCommand("session.half.page.up")
-        return
-      default:
-        return
+    if (name === "g") {
+      ctx.consume()
+      api.keymap.dispatchCommand("session.first")
     }
+    return
   }
 
   switch (name) {
@@ -75,26 +64,31 @@ function handleNormalKey(api: TuiPluginApi, ctx: { event: KeyEvent }) {
     case "A":
     case "o":
     case "O":
+      ctx.consume()
       enterInsert(api)
       return
     case "j":
-    case "down":
+      ctx.consume()
       api.keymap.dispatchCommand("session.line.down")
       return
     case "k":
-    case "up":
+      ctx.consume()
       api.keymap.dispatchCommand("session.line.up")
       return
     case "g":
+      ctx.consume()
       pendingG = true
       return
     case "G":
+      ctx.consume()
       api.keymap.dispatchCommand("session.last")
       return
     case "space":
+      ctx.consume()
       openLeaderMenu(api)
       return
     case ":":
+      ctx.consume()
       api.keymap.dispatchCommand("command.palette.show")
       return
     case "escape":
@@ -173,11 +167,13 @@ const tui: TuiPlugin = async (api, options, meta) => {
       return
     }
 
-    // Keep unrelated global shortcuts available while handling Vim scrolling.
-    if (ev.meta) return
-    if (ev.ctrl && !["f", "b", "d", "u"].includes(ev.name)) return
-
-    ctx.consume()
+    // In NORMAL mode, do NOT blanket-consume. Only the keys we actually
+    // handle (j/k/g/G/i/a/o/A/O/space/:) are consumed inside handleNormalKey.
+    // Everything else passes through to the host keymap so opencode's native
+    // keybinds keep working:
+    //   - up/down/left/right -> subagent navigation
+    //   - ctrl+x (leader), then down -> view subagents (session.child.first)
+    //   - ctrl+b -> background subagents, ctrl+f -> pin, <leader>q, <leader>t ...
     handleNormalKey(api, ctx)
   })
 }
