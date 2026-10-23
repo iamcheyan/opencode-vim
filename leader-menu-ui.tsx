@@ -53,12 +53,24 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
     executeAction(props.api, item as LeaderLeaf)
   }
 
-  const groupCommands = groups.map((g) => ({
-    name: `vim_leader_open_${g.key}`,
-    run() {
-      openGroup(g)
-    },
-  }))
+  const directKeys = Array.from(
+    new Set([
+      ...groups.map((group) => group.key),
+      ...groups.flatMap((group) => group.items.filter((item) => !isSeparator(item)).map((item) => item.key)),
+    ]),
+  )
+  const commandName = (key: string) => `vim_leader_key_${key.codePointAt(0) ?? 0}`
+  const activateKey = (key: string) => {
+    if (view() === "groups") {
+      const group = groups.find((item) => item.key === key)
+      if (group) openGroup(group)
+      return
+    }
+    const item = items().find((entry) => !isSeparator(entry) && entry.key === key)
+    if (!item || isSeparator(item)) return
+    props.onClose()
+    executeAction(props.api, item)
+  }
 
   useBindings(() => ({
     enabled: () => props.api.ui.dialog.open,
@@ -78,7 +90,7 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
           setLeaderSelected(km(), Math.max(0, getLeaderSelected(km()) - 1))
         },
       },
-      ...groupCommands,
+      ...directKeys.map((key) => ({ name: commandName(key), run() { activateKey(key) } })),
     ],
     bindings: [
       { key: "escape", cmd: "vim_leader_close" },
@@ -89,7 +101,7 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
       { key: "down", cmd: "vim_leader_down" },
       { key: "k", cmd: "vim_leader_up" },
       { key: "up", cmd: "vim_leader_up" },
-      ...groups.map((g) => ({ key: g.key, cmd: `vim_leader_open_${g.key}` })),
+      ...directKeys.map((key) => ({ key: key === " " ? "space" : key, cmd: commandName(key) })),
     ],
   }))
 
@@ -99,7 +111,7 @@ export function LeaderMenu(props: { api: import("@opencode-ai/plugin/tui").TuiPl
     border: theme().border,
     text: theme().text,
     muted: theme().textMuted,
-    accent: theme().accent,
+    accent: theme().text,
     selected: theme().selectedListItemText,
   })
 

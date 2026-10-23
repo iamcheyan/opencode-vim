@@ -1,5 +1,5 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { spawnSync, execSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 
 export type LeaderAction = "command" | "clear" | "quit" | "backup" | "restore" | "lazygit" | "api_test" | "skill"
 
@@ -27,15 +27,6 @@ export type LeaderItem = LeaderLeaf | LeaderSeparator
 
 export function isSeparator(item: LeaderItem): item is LeaderSeparator {
   return "separator" in item && item.separator === true
-}
-
-function binaryExists(name: string): boolean {
-  try {
-    execSync(`command -v ${name}`, { stdio: "ignore" })
-    return true
-  } catch {
-    return false
-  }
 }
 
 export const DEFAULT_LEADER_MENU: LeaderGroup[] = [
@@ -95,7 +86,6 @@ export const DEFAULT_LEADER_MENU: LeaderGroup[] = [
       { key: "t", label: "theme", action: "command", command: "theme.switch" },
       { key: "m", label: "toggle dark/light", action: "command", command: "theme.switch_mode" },
       { key: "r", label: "thinking mode", action: "command", command: "session.toggle.thinking" },
-      { key: "h", label: "toggle sidebar", action: "command", command: "session.sidebar.toggle" },
       { key: "c", label: "clear", action: "clear" },
       { key: "p", label: "skills", action: "command", command: "prompt.skills" },
     ],
@@ -140,7 +130,7 @@ export function executeAction(api: TuiPluginApi, item: LeaderLeaf): void {
       api.keymap.dispatchCommand("prompt.clear")
       break
     case "quit":
-      api.keymap.dispatchCommand("app.quit")
+      api.keymap.dispatchCommand("app.exit")
       break
     case "lazygit":
       runLazyGit(api)
